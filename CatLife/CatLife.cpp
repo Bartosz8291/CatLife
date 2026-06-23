@@ -8,6 +8,16 @@
 #include <filesystem>
 #include <windows.h>
 
+std::string xorCrypt(const std::string& data, const std::string& key) {
+    std::string out = data;
+    for (size_t i = 0; i < data.size(); i++) {
+        out[i] = data[i] ^ key[i % key.size()];
+    }
+    return out;
+}
+
+const std::string SAVE_KEY = "CatLife_@581&*%2";
+
 std::string getAppDataPath() {
     char* appdata;
     size_t len;
@@ -38,27 +48,42 @@ public:
     Cat() : name(""), age(0), hunger(80), happiness(70), energy(90), health(95), day(1), isAlive(true) {}
 
     void saveToFile(const std::string& filepath) {
-        std::ofstream file(filepath);
+        std::ofstream file(filepath, std::ios::binary);
         if (file.is_open()) {
-            file << "{\n";
-            file << "  \"name\": \"" << name << "\",\n";
-            file << "  \"age\": " << age << ",\n";
-            file << "  \"hunger\": " << hunger << ",\n";
-            file << "  \"happiness\": " << happiness << ",\n";
-            file << "  \"energy\": " << energy << ",\n";
-            file << "  \"health\": " << health << ",\n";
-            file << "  \"day\": " << day << ",\n";
-            file << "  \"isAlive\": " << (isAlive ? "true" : "false") << "\n";
-            file << "}\n";
-            file.close();
+            std::string raw;
+            raw += "{\n";
+            raw += "  \"name\": \"" + name + "\",\n";
+            raw += "  \"age\": " + std::to_string(age) + ",\n";
+            raw += "  \"hunger\": " + std::to_string(hunger) + ",\n";
+            raw += "  \"happiness\": " + std::to_string(happiness) + ",\n";
+            raw += "  \"energy\": " + std::to_string(energy) + ",\n";
+            raw += "  \"health\": " + std::to_string(health) + ",\n";
+            raw += "  \"day\": " + std::to_string(day) + ",\n";
+            raw += "  \"isAlive\": " + std::string(isAlive ? "true" : "false") + "\n";
+            raw += "}\n";
+
+        std::string encrypted = xorCrypt(raw, SAVE_KEY);
+        file.write(encrypted.c_str(), encrypted.size());
+        file.close();
         }
     }
 
     bool loadFromFile(const std::string& filepath) {
-        std::ifstream file(filepath);
+        std::ifstream file(filepath, std::ios::binary);
         if (!file.is_open()) return false;
+    
+        std::string encrypted((std::istreambuf_iterator<char>(file)),
+                           std::istreambuf_iterator<char>());
+        file.close();
+
+        std::string data = xorCrypt(encrypted, SAVE_KEY);
+
+        if (data.find("{") == std::string::npos) return false;
+    
         std::string line;
-        while (std::getline(file, line)) {
+        std::istringstream stream(data);
+    
+        while (std::getline(stream, line)) {
             if (line.find("\"name\"") != std::string::npos) {
                 size_t start = line.find("\"", line.find(":") + 1) + 1;
                 size_t end = line.find("\"", start);
@@ -86,7 +111,7 @@ public:
                 isAlive = line.find("true") != std::string::npos;
             }
         }
-        file.close();
+    
         return true;
     }
 
